@@ -1,0 +1,12 @@
+cmake_minimum_required(VERSION 3.12)
+project(atomjs)
+set(ATOMJS_RUNTIME_NAME atom)
+set(ATOMJS_COMPILER_NAME atomc)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
+include_directories(./src)
+include_directories(./quickjs/include)
+add_executable(${ATOMJS_RUNTIME_NAME} ${PROJECT_SOURCE_DIR}/src/main.cpp)
+add_subdirectory(quickjs)
+
+target_link_libraries(${ATOMJS_RUNTIME_NAME} quickjs pthread)

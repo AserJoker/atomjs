@@ -18,7 +18,7 @@ target_link_libraries(${ATOMJS_RUNTIME_NAME} PRIVATE cjson)
 find_package(fmt CONFIG REQUIRED)
 target_link_libraries(${ATOMJS_RUNTIME_NAME} PRIVATE fmt::fmt)
 
-add_executable(${ATOMJS_RUNTIME_NAME_TEST} ${PROJECT_SOURCE_DIR}/test/pathTest.cpp)
+add_executable(${ATOMJS_RUNTIME_NAME_TEST} ${PROJECT_SOURCE_DIR}/test/main.cpp)
 
 target_link_libraries(${ATOMJS_RUNTIME_NAME_TEST} PRIVATE quickjs pthread)
 

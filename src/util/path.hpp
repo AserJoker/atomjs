@@ -7,14 +7,14 @@ class path {
 private:
   std::vector<std::string> _parts;
   void append(const std::string &part) {
-    if (part == "."||part.empty()) {
+    if (part == "." || part.empty()) {
       return;
     }
     if (part == "..") {
-      if (!_parts.empty()) {
+      if (!_parts.empty() && _parts[_parts.size() - 1] != "..") {
         _parts.resize(_parts.size() - 1);
+        return;
       }
-      return;
     }
     _parts.push_back(part);
   }
@@ -35,6 +35,7 @@ public:
     }
     append(part);
   }
+  path(const char *p) : path(std::string(p)) {}
   std::string string() const {
     std::string result;
     for (auto &part : _parts) {

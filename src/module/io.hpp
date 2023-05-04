@@ -1,6 +1,7 @@
 #pragma once
 #include "engine/Runtime.hpp"
 #include "quickjs.h"
+#include <fcntl.h>
 
 class io {
 private:
@@ -11,6 +12,7 @@ private:
     JS_FreeCString(ctx, msg);
     return JS_UNDEFINED;
   }
+
   static int init(JSContext *ctx, JSModuleDef *m) {
     JS_SetModuleExport(ctx, m, "println",
                        JS_NewCFunction(ctx, &println, "println", 1));

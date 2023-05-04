@@ -22,6 +22,28 @@ private:
 
   std::map<std::string, std::string> _paths;
 
+  static JSModuleDef *loadJS(JSContext *ctx, const std::vector<char> &data,
+                             const char *name) {
+    auto val = JS_Eval(ctx, data.data(), strlen(data.data()), name,
+                       JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+
+    if (JS_IsException(val)) {
+      return nullptr;
+    }
+    auto m = (JSModuleDef *)(JS_VALUE_GET_PTR(val));
+    JS_FreeValue(ctx, val);
+    return m;
+  }
+
+  static JSModuleDef *loadModule(JSContext *ctx, const std::vector<char> &data,
+                                 const char *name) {
+    auto val = JS_ReadObject(ctx, (uint8_t *)data.data(), data.size(),
+                             JS_READ_OBJ_BYTECODE);
+    auto m = (JSModuleDef *)(JS_VALUE_GET_PTR(val));
+    JS_FreeValue(ctx, val);
+    return m;
+  }
+
   static char *normalize(JSContext *ctx, const char *source_name,
                          const char *target_name, void *runtime) {
     if (strcmp(source_name, "<internel>") == 0) {
@@ -49,13 +71,16 @@ private:
       result = target;
     }
     if (!result.isExist()) {
-      if (path::join({result.dirname(), result.filename() + ".js"}).isExist()) {
-        result = path::join({result.dirname(), result.filename() + ".js"});
-      } else if (path::join({result.dirname(), result.filename() + ".module"})
-                     .isExist()) {
-        result = path::join({result.dirname(), result.filename() + ".module"});
+      auto dirname = result.dirname();
+      auto filename = result.filename();
+      if (path::join({dirname, filename + ".js"}).isExist()) {
+        result = path::join({dirname, filename + ".js"});
+      } else if (path::join({dirname, filename + ".module"}).isExist()) {
+        result = path::join({dirname, filename + ".module"});
       } else if (path::join({result, std::string("index.js")}).isExist()) {
         result = path::join({result, std::string("index.js")});
+      } else if (path::join({result, std::string("index.module")}).isExist()) {
+        result = path::join({result, std::string("index.module")});
       }
     }
     result = path::absolute(result);
@@ -72,21 +97,9 @@ private:
       return nullptr;
     }
     if (std::string(name).ends_with(".module")) {
-      auto val = JS_ReadObject(ctx, (uint8_t *)data.data(), data.size(),
-                               JS_READ_OBJ_BYTECODE);
-      auto m = (JSModuleDef *)(JS_VALUE_GET_PTR(val));
-      JS_FreeValue(ctx, val);
-      return m;
+      return loadModule(ctx, data, name);
     }
-    auto val = JS_Eval(ctx, data.data(), strlen(data.data()), name,
-                       JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-
-    if (JS_IsException(val)) {
-      return nullptr;
-    }
-    auto m = (JSModuleDef *)(JS_VALUE_GET_PTR(val));
-    JS_FreeValue(ctx, val);
-    return m;
+    return loadJS(ctx, data, name);
   }
 
 public:
@@ -102,7 +115,7 @@ public:
   }
 
   void exec(const std::string &source) {
-    JSValue result = JS_Eval(_context, source.c_str(), source.length() - 1,
+    JSValue result = JS_Eval(_context, source.c_str(), source.length(),
                              "<internel>", JS_EVAL_TYPE_MODULE);
     if (JS_IsException(result)) {
       JSValue expr = JS_GetException(_context);
@@ -127,5 +140,7 @@ public:
     }
   }
 
-  void setPath(const std::string &name, const std::string &p) { _paths[name] = p; }
+  void alias(const std::string &name, const std::string &p) {
+    _paths[name] = p;
+  }
 };

@@ -16,6 +16,22 @@ public:
     std::vector<std::string> exports;
   };
 
+  struct FunctionDefinition {
+    JSCFunction *entry;
+    int length;
+    std::string name;
+  };
+
+  struct ObjectDefinition {
+    std::map<std::string, JSValue> proto;
+  };
+
+  struct ClassDefinition {
+    std::map<std::string, JSValue> proto;
+    JSClassFinalizer *dispose;
+    std::string name;
+  };
+
 private:
   JSRuntime *_runtime;
   JSContext *_context;
@@ -102,6 +118,20 @@ private:
     return loadJS(ctx, data, name);
   }
 
+  void resolveError() {
+    JSValue expr = JS_GetException(_context);
+    auto message = JS_ToCString(_context, expr);
+    JSValue vstack = JS_GetPropertyStr(_context, expr, "stack");
+    auto stack = JS_ToCString(_context, vstack);
+    std::stringstream ss;
+    ss << message << "\n" << stack;
+    JS_FreeCString(_context, stack);
+    JS_FreeValue(_context, vstack);
+    JS_FreeCString(_context, message);
+    JS_FreeValue(_context, expr);
+    throw std::runtime_error(ss.str());
+  }
+
 public:
   Runtime() : _runtime(nullptr), _context(nullptr) {
     _runtime = JS_NewRuntime();
@@ -118,19 +148,22 @@ public:
     JSValue result = JS_Eval(_context, source.c_str(), source.length(),
                              "<internel>", JS_EVAL_TYPE_MODULE);
     if (JS_IsException(result)) {
-      JSValue expr = JS_GetException(_context);
-      auto message = JS_ToCString(_context, expr);
-      JSValue vstack = JS_GetPropertyStr(_context, expr, "stack");
-      auto stack = JS_ToCString(_context, vstack);
-      std::stringstream ss;
-      ss << message << "\n" << stack;
-      JS_FreeCString(_context, stack);
-      JS_FreeValue(_context, vstack);
-      JS_FreeCString(_context, message);
-      JS_FreeValue(_context, expr);
-      throw std::runtime_error(ss.str());
+      resolveError();
     }
     JS_FreeValue(_context, result);
+  }
+
+  void wait() {
+    while (true) {
+      JSContext *ctx = nullptr;
+      auto res = JS_ExecutePendingJob(_runtime, &ctx);
+      if (res == 0) {
+        break;
+      }
+      if (res < 0) {
+        resolveError();
+      }
+    }
   }
 
   void registerModule(const ModuleDescription &desc) {
@@ -143,4 +176,36 @@ public:
   void alias(const std::string &name, const std::string &p) {
     _paths[name] = p;
   }
+
+  JSValue valueOf(const int &val) { return JS_NewInt32(_context, val); }
+  JSValue valueOf(const double &val) { return JS_NewFloat64(_context, val); }
+  JSValue valueOf(const std::string &val) {
+    return JS_NewString(_context, val.c_str());
+  }
+  JSValue valueOf(const FunctionDefinition &def) {
+    return JS_NewCFunction(_context, def.entry, def.name.c_str(), def.length);
+  }
+  JSValue valueOf(const ObjectDefinition &def) {
+    JSValue obj = JS_NewObject(_context);
+    for (auto &[key, val] : def.proto) {
+      JS_SetPropertyStr(_context, obj, key.c_str(), val);
+    }
+    return obj;
+  }
+  JSClassID classOf(const ClassDefinition &def) {
+    JSClassID cid = 0;
+    JS_NewClassID(&cid);
+    JSClassDef cdef;
+    cdef.class_name = def.name.c_str();
+    cdef.finalizer = def.dispose;
+    cdef.call = nullptr;
+    cdef.exotic = nullptr;
+    cdef.gc_mark = nullptr;
+    JS_NewClass(_runtime, cid, &cdef);
+    JSValue proto = valueOf({def.proto});
+    JS_SetClassProto(_context, cid, proto);
+    return cid;
+  }
 };
+#define JSFUNCTION(func)                                                       \
+  JSValue func(JSContext *ctx, JSValue self, int argc, JSValue *argv)

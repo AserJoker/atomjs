@@ -1,7 +1,9 @@
 #pragma once
 #include "engine/Runtime.hpp"
 #include "quickjs.h"
+#include <cstdio>
 #include <fcntl.h>
+#include <functional>
 
 class io {
 private:
@@ -21,6 +23,7 @@ private:
 
 public:
   static void registerTo(Runtime *rt) {
-    rt->registerModule({.init = &init, .name = "io", .exports = {"println"}});
+    rt->registerModule(
+        {.init = &init, .name = "io", .exports = {"println", "Data"}});
   }
 };

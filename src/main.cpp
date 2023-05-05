@@ -7,49 +7,64 @@
 #include <quickjs.h>
 #include <stdint.h>
 
-int main(int argc, char **argv) {
+struct CmdLineOption {
+  std::vector<std::string> files;
+  std::vector<std::string> packages;
+};
 
-  path result = path::join({"/a/b/c", "../.././b"});
-  std::cout << result.string();
-  return 0;
+typedef void (*demo)();
+
+void subCommandRun(CmdLineOption opt, Runtime *rt, PackageManager &pm) {
+  for (auto &pack : opt.packages) {
+    pm.loadPackages(rt, pack);
+  }
+  for (auto &file : opt.files) {
+    if (pm.exist(file)) {
+      pm.run(rt, file);
+    } else {
+      path p = path::absolute(file);
+      if (p.isDirExist()) {
+        auto pack = pm.loadPackage(rt, p.string());
+        if (!pack.entry.empty()) {
+          pm.run(rt, pack.id);
+        }
+      } else {
+        rt->exec(fmt::format("import '{}'", p.string()));
+      }
+    }
+  }
+  rt->wait();
+}
+void subCommandCompile(CmdLineOption opt, Runtime *rt, PackageManager &pm) {}
+
+int main(int argc, char **argv) {
   try {
     int argc = 3;
     const char *argv[] = {"", "run", "demo"};
     cmdline cmd;
-    std::vector<std::string> packages;
-    std::vector<std::string> files;
-    cmd.registerOthers(&files);
-    cmd.registerArg({"package", "pack", "packages path"}, packages);
+    CmdLineOption opt;
+    cmd.registerOthers(&opt.files);
+    cmd.registerArg({"package", "pack", "packages path"}, opt.packages);
     if (argc < 2) {
       cmd.help();
       return 0;
     }
+    std::string subCommand = argv[1];
     cmd.parse(argc, (char **)argv, 2);
     Runtime rt;
     PackageManager pm;
     io::registerTo(&rt);
     pm.loadPackages(&rt, "./packages");
-    std::string subCommand = argv[1];
     if (subCommand == "help") {
       cmd.help();
       return 0;
     }
     if (subCommand == "run") {
-      for (auto &file : files) {
-        if (pm.exist(file)) {
-          pm.run(&rt, file);
-        } else {
-          path p = path::absolute(file);
-          if (p.isDirExist()) {
-            auto pack = pm.loadPackage(&rt, p.string());
-            if (!pack.entry.empty()) {
-              pm.run(&rt, pack.id);
-            }
-          } else {
-            rt.exec(fmt::format("import '{}'", p.string()));
-          }
-        }
-      }
+      subCommandRun(opt, &rt, pm);
+      return 0;
+    }
+    if (subCommand == "compile") {
+      return 0;
     }
   } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;

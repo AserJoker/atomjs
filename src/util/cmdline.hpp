@@ -108,7 +108,7 @@ public:
   void registerOthers(std::vector<std::string> *others) { _others = others; }
 
   void help() {
-    fmt::print("Usage: atom [options] file ...\n");
+    fmt::print("Usage: atom version|help|run|compile [options] files ...\n");
     fmt::print("Options:\n");
     for (auto &arg : _infos) {
       std::string flag;
